@@ -1,0 +1,52 @@
+name: Publish releases
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+    inputs:
+      cezar_version:
+        description: Exact Cezar version (empty polls latest and nightly)
+        required: false
+        type: string
+      channel:
+        description: Alias for an explicit version
+        type: choice
+        options: [version, latest, nightly]
+        default: version
+      force:
+        description: Reset the attempt budget for the explicit version and rebuild
+        type: boolean
+        default: false
+      codex_version:
+        description: Exact Codex version for smoke testing
+        type: string
+        default: '0.166.0'
+permissions: {}
+concurrency:
+  group: release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      packages: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      INPUT_CEZAR_VERSION: ${{ inputs.cezar_version }}
+      INPUT_CHANNEL: ${{ inputs.channel || 'version' }}
+      INPUT_FORCE: ${{ inputs.force || 'false' }}
+      CODEX_VERSION: ${{ inputs.codex_version || '0.166.0' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-compose-action@54042514f505b273907334ae2b9cdbb9a0213c1a # v2
+      - name: Sign in to GHCR
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "$REGISTRY_USER" --password-stdin
+      - name: Poll, build, and publish
+        run: python3 scripts/release.py

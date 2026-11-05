@@ -21,11 +21,23 @@ trap cleanup EXIT
 test "$(docker image inspect "$CEZAR_IMAGE" --format '{{.Architecture}}')" = amd64
 docker run --rm --entrypoint bash "$CEZAR_IMAGE" -ceu '! command -v codex'
 dc config --quiet
+# The cockpit must start before a repository or agent CLI exists.
+dc up -d --no-build --pull never --wait --wait-timeout 120
+port=$(dc port cezar 4321)
+curl --fail --silent "http://$port/api/v1/health" | python3 -c '
+import json, os, sys
+h = json.load(sys.stdin)
+assert h["version"] == os.environ["CEZAR_VERSION"], h
+assert h["repo"] is None, h
+'
+dc stop --timeout 60
 dc run --rm --no-deps --entrypoint bash cezar -ceu '
   git init -b main .
   git -c user.name="Cezar test" -c user.email="ci@example.invalid" commit --allow-empty -m fixture
 '
 dc run --rm --no-deps --entrypoint codex-tool cezar install "$CODEX_VERSION"
+# Expansions below run inside the container.
+# shellcheck disable=SC2016
 dc run --rm --no-deps --entrypoint bash cezar -ceu '
   test "$(command -v codex)" = "$HOME/.local/bin/codex"
   printf "configuration-survives\n" > "$HOME/.persistence-test"
@@ -43,6 +55,7 @@ check_cockpit() {
 import json, os, sys
 h = json.load(sys.stdin)
 assert h["version"] == os.environ["CEZAR_VERSION"], h
+assert any(c["name"] == "codex" and c["available"] for c in h["checks"]), h
 '
   curl --fail --silent "http://$port/" >/dev/null
   dc exec -T cezar codex-tool check | grep -Fx "codex-cli $CODEX_VERSION"
@@ -58,6 +71,8 @@ dc rm -f cezar
 export CEZAR_IMAGE="$replacement"
 check_cockpit
 test "$before" != "$(dc ps -q cezar)"
+# Expansions below run inside the container.
+# shellcheck disable=SC2016
 dc exec -T cezar bash -ceu '
   test "$(cat "$HOME/.persistence-test")" = configuration-survives
   node -e '\''const fs=require("node:fs"); const p=process.env.CODEX_HOME+"/auth.json"; if(JSON.parse(fs.readFileSync(p)).test_fixture!=="not-a-credential")process.exit(1)'\''
