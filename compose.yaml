@@ -6,7 +6,7 @@ services:
       context: .
       args:
         CEZAR_VERSION: ${CEZAR_VERSION:-0.18.0}
-    platform: linux/amd64
+    platform: ${CEZAR_PLATFORM:-}
     init: true
     user: "1000:1000"
     restart: unless-stopped

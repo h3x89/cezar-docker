@@ -2,7 +2,8 @@
 
 Docker packaging for [upstream Cezar](https://github.com/open-mercato/cezar).
 The image packages the unchanged Cezar npm release. Codex is installed separately
-by the operator into a persistent home volume. Linux AMD64 only.
+by the operator into a persistent home volume. Linux AMD64 (x86_64, Intel/AMD)
+and ARM64 (aarch64, including Apple Silicon) use the same image tags.
 
 ## Quick start
 
@@ -15,6 +16,10 @@ export CEZAR_IMAGE=ghcr.io/h3x89/cezar-docker:0.18.0
 docker compose pull
 docker compose up -d --no-build --wait
 ```
+
+Docker selects the matching platform from the image index. Each release contains
+both `linux/amd64` and `linux/arm64`. Set `CEZAR_PLATFORM` only to deliberately
+override this selection; an incompatible platform requires emulation.
 
 Images appear under the repository Packages after the first approved release.
 A new GHCR package starts private: its owner must make it public once and verify
@@ -68,6 +73,9 @@ replacing containers. Stop active tasks before updating. Pull a newer image and
 run `docker compose up -d --no-build --wait`; the Codex version in the home
 volume remains under your control. Keep the base OS, Node and installed CLI
 compatible when reusing a home volume. Login can expire or be revoked independently.
+Keep each home volume on the same CPU architecture: an installed Codex binary
+cannot be moved between AMD64 and ARM64. Install Codex into a new home on the new
+architecture and sign in again.
 
 To roll back, set `CEZAR_IMAGE` to the previous image tag or digest, then repeat
 the pull and `up` commands with the same volumes. This restores the image, not
@@ -84,7 +92,9 @@ Build the exact version with the same image tag that the smoke script consumes:
 export CEZAR_VERSION=0.18.0
 export CODEX_VERSION=0.166.0
 export CEZAR_IMAGE=cezar:local
-docker build --platform linux/amd64 --build-arg "CEZAR_VERSION=$CEZAR_VERSION" -t "$CEZAR_IMAGE" .
+export CEZAR_PLATFORM=linux/amd64 # use linux/arm64 on an ARM64 machine
+docker build --platform "$CEZAR_PLATFORM" \
+  --build-arg "CEZAR_VERSION=$CEZAR_VERSION" -t "$CEZAR_IMAGE" .
 bash scripts/smoke.sh
 ```
 
@@ -110,17 +120,26 @@ Actions with **Run workflow**. Inputs are an optional exact Cezar version
 `nightly`), `force` (explicitly rebuild the requested version), and Codex
 version (default `0.166.0`).
 
+Manual releases from other branches or tags are skipped. The same workflow
+builds and smoke-tests AMD64 and ARM64 sequentially on one GitHub-hosted x64
+runner, using QEMU for ARM64. Emulation can make the ARM64 test slower.
+
 ```mermaid
 flowchart LR
-    NPM["npm: stable + nightly"] --> STATE["state.json on update-state<br/>Skip completed; max 3 attempts/version<br/>1 hour between attempts"]
-    STATE --> BUILD[Build exact Cezar version]
-    BUILD --> SMOKE[Smoke test same image]
-    SMOKE --> GHCR["GHCR: exact version + alias<br/>latest and nightly are distinct"]
+    NPM["npm: stable + nightly"] --> STATE["state.json: skip completed versions"]
+    STATE --> TRY["Max 3 attempts/version<br/>1 hour between attempts"]
+    TRY --> BUILD["Build exact version<br/>AMD64 and ARM64"]
+    BUILD --> SMOKE["Smoke test each image"]
+    SMOKE --> GHCR["Both pass → GHCR image index<br/>exact version + latest or nightly"]
 ```
 
-The workflow builds, smoke tests the same image, then publishes the exact
-version and, for those channels, its selected `latest` or `nightly` alias. The
-two aliases remain separate. A completed version is skipped; each version gets at most three attempts with at
+Only after both platform tests pass does the workflow push their tested images
+as `amd64-VERSION` and `arm64-VERSION`, then publish a shared `VERSION` image index
+and its selected `latest` or `nightly` alias. A failed test leaves registry tags
+unchanged. A registry error can leave platform tags without a completed shared
+index; a later permitted attempt retries the release. The
+two aliases remain separate. A completed version is skipped; each version gets
+at most three attempts with at
 least one hour between attempts. A cancelled attempt counts. `force` explicitly
 resets the requested version's state and rebuilds it; manual dispatch defaults
 to channel `version`. The release workflow uses an ephemeral `GITHUB_TOKEN` for
@@ -133,6 +152,14 @@ enabling scheduled releases. Releases only update GHCR and workflow state; they
 never deploy to a host. Codex updates remain manual. The Node base image digest
 is pinned and must be updated manually for security maintenance; rebuilding a
 Cezar version does not upgrade Node.
+
+The release job uses pinned `regctl` to create the OCI index with the GHCR
+description, verify both platforms, and copy complete indexes between aliases.
+It uses the workflow's Docker login. No additional service or credential is needed.
+
+When upgrading from the original AMD64-only packaging, rebuild each current
+stable/nightly version once with its exact version, matching channel and
+`force=true`. Already published versions are otherwise skipped as before.
 
 ## Runtime model
 

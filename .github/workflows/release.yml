@@ -27,8 +27,9 @@ concurrency:
   cancel-in-progress: false
 jobs:
   release:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 60
     permissions:
       contents: write
       packages: write
@@ -43,6 +44,12 @@ jobs:
         with:
           persist-credentials: false
       - uses: docker/setup-compose-action@54042514f505b273907334ae2b9cdbb9a0213c1a # v2
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
+        with:
+          platforms: arm64
+      - uses: regclient/actions/regctl-installer@1b705e32d40851370799ea5814e83d0a5f6a70dc # v0.1
+        with:
+          release: v0.11.7
       - name: Sign in to GHCR
         env:
           REGISTRY_TOKEN: ${{ github.token }}
