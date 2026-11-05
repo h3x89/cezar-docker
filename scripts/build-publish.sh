@@ -10,7 +10,7 @@ PUBLISH="${PUBLISH:-false}"
 
 version_pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
 for version in "$CEZAR_VERSION" "$CODEX_VERSION"; do
-  if [[ ! $version =~ $version_pattern || ${#version} -gt 128 ]]; then
+  if [[ ! $version =~ $version_pattern || ${#version} -gt 122 ]]; then
     printf 'Invalid exact version: %s\n' "$version" >&2
     exit 1
   fi
@@ -22,26 +22,46 @@ if [[ ! $IMAGE_REPOSITORY =~ ^ghcr\.io/[a-z0-9]+([._-][a-z0-9]+)*(/[a-z0-9]+([._
   exit 1
 fi
 
-export CEZAR_VERSION CEZAR_IMAGE=cezar:release-test
+export CEZAR_VERSION
 image="$IMAGE_REPOSITORY:$CEZAR_VERSION"
-docker build --platform linux/amd64 --pull --build-arg "CEZAR_VERSION=$CEZAR_VERSION" -t "$CEZAR_IMAGE" .
-bash scripts/smoke.sh
-docker tag "$CEZAR_IMAGE" "$image"
-if [[ $RELEASE_CHANNEL != version ]]; then
-  docker tag "$CEZAR_IMAGE" "$IMAGE_REPOSITORY:$RELEASE_CHANNEL"
-fi
+for arch in amd64 arm64; do
+  export CEZAR_PLATFORM="linux/$arch" CEZAR_IMAGE="cezar:release-test-$arch"
+  docker build --platform "$CEZAR_PLATFORM" --pull --build-arg "CEZAR_VERSION=$CEZAR_VERSION" -t "$CEZAR_IMAGE" .
+  bash scripts/smoke.sh
+done
 
 if [[ $PUBLISH == true ]]; then
-  # The registry-reported digest from the exact-version push identifies the tested image.
-  output=$(docker push "$image")
-  printf '%s\n' "$output"
-  digest=$(printf '%s\n' "$output" | sed -nE 's/.*digest: (sha256:[0-9a-f]{64}).*/\1/p' | tail -n 1)
+  # Publish only after BOTH smoke tests. The shared tag selects the host platform.
+  sources=()
+  for arch in amd64 arm64; do
+    ref="$IMAGE_REPOSITORY:$arch-$CEZAR_VERSION"
+    docker tag "cezar:release-test-$arch" "$ref"
+    output=$(docker push "$ref")
+    printf '%s\n' "$output"
+    digest=$(printf '%s\n' "$output" | sed -nE 's/.*digest: (sha256:[0-9a-f]{64}).*/\1/p' | tail -n 1)
+    [[ $digest =~ ^sha256:[0-9a-f]{64}$ ]] || { echo 'Registry did not report a platform digest' >&2; exit 1; }
+    sources+=("$IMAGE_REPOSITORY@$digest")
+  done
+  # regctl preserves the tested manifests and creates an annotated OCI index,
+  # even when Docker pushed the individual images as schema 2.
+  digest=$(regctl index create "$image" --ref "${sources[0]}" --ref "${sources[1]}" \
+    --media-type application/vnd.oci.image.index.v1+json \
+    --annotation 'org.opencontainers.image.description=Cezar for Linux AMD64 (x86_64) and ARM64 (aarch64); install Codex separately.' \
+    --format '{{.Manifest.GetDescriptor.Digest}}')
   if [[ ! $digest =~ ^sha256:[0-9a-f]{64}$ ]]; then
     echo 'Registry did not report a digest' >&2
     exit 1
   fi
+  regctl manifest get "$IMAGE_REPOSITORY@$digest" --format raw-body | python3 -c '
+import json, sys
+m = json.load(sys.stdin)
+assert m["mediaType"] == "application/vnd.oci.image.index.v1+json", m
+assert len(m["manifests"]) == 2, m
+assert {(x["platform"]["os"], x["platform"]["architecture"]) for x in m["manifests"]} == {("linux", "amd64"), ("linux", "arm64")}, m
+assert m["annotations"]["org.opencontainers.image.description"] == "Cezar for Linux AMD64 (x86_64) and ARM64 (aarch64); install Codex separately.", m
+'
   if [[ $RELEASE_CHANNEL != version ]]; then
-    docker push "$IMAGE_REPOSITORY:$RELEASE_CHANNEL"
+    regctl image copy "$IMAGE_REPOSITORY@$digest" "$IMAGE_REPOSITORY:$RELEASE_CHANNEL"
   fi
   if [[ -n ${RELEASE_RESULT:-} ]]; then
     python3 - "$RELEASE_RESULT" "$image" "$digest" <<'PY'

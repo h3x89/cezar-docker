@@ -4,6 +4,8 @@ cd "$(dirname "$0")/.."
 : "${CEZAR_VERSION:?Set the exact Cezar version}"
 : "${CODEX_VERSION:?Set the exact Codex version}"
 export CEZAR_IMAGE="${CEZAR_IMAGE:-cezar:smoke}"
+export CEZAR_PLATFORM="${CEZAR_PLATFORM:-linux/amd64}"
+case "$CEZAR_PLATFORM" in linux/amd64|linux/arm64) ;; *) echo 'Unsupported test platform' >&2; exit 1 ;; esac
 export CEZ_DRY_RUN=1 CEZAR_PORT=0 CEZAR_BIND_ADDRESS=127.0.0.1
 project="cezar-smoke-${GITHUB_RUN_ID:-local}-$$"
 replacement="cezar:replacement-$$"
@@ -18,8 +20,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-test "$(docker image inspect "$CEZAR_IMAGE" --format '{{.Architecture}}')" = amd64
-docker run --rm --entrypoint bash "$CEZAR_IMAGE" -ceu '! command -v codex'
+test "$(docker image inspect "$CEZAR_IMAGE" --format '{{.Architecture}}')" = "${CEZAR_PLATFORM#linux/}"
+docker run --rm --platform "$CEZAR_PLATFORM" --entrypoint bash "$CEZAR_IMAGE" -ceu '! command -v codex'
 dc config --quiet
 # The cockpit must start before a repository or agent CLI exists.
 dc up -d --no-build --pull never --wait --wait-timeout 120
@@ -65,7 +67,7 @@ before=$(dc ps -q cezar)
 
 # A different image configuration, same app: test replacement, not restart.
 printf 'FROM %s\nLABEL io.cezar.test-replacement="true"\n' "$CEZAR_IMAGE" |
-  docker build --quiet -t "$replacement" - >/dev/null
+  docker build --platform "$CEZAR_PLATFORM" --quiet -t "$replacement" - >/dev/null
 dc stop --timeout 60
 dc rm -f cezar
 export CEZAR_IMAGE="$replacement"
@@ -79,6 +81,6 @@ dc exec -T cezar bash -ceu '
   node -e '\''const fs=require("node:fs"); const runs=JSON.parse(fs.readFileSync("/workspace/project/.ai/cezar/runs.json")); if(!runs.some(r=>["done","review"].includes(r.status)))process.exit(1)'\''
 '
 # The persisted CLI also works without network or reinstallation.
-docker run --rm --network none --mount "source=${project}_home,target=/home/cezar" \
+docker run --rm --platform "$CEZAR_PLATFORM" --network none --mount "source=${project}_home,target=/home/cezar" \
   --entrypoint codex-tool "$replacement" check | grep -Fx "codex-cli $CODEX_VERSION"
-printf 'PASS: Cezar %s; Codex %s; container replacement; persisted settings/auth fixture.\n' "$CEZAR_VERSION" "$CODEX_VERSION"
+printf 'PASS: %s; Cezar %s; Codex %s; container replacement; persisted settings/auth fixture.\n' "$CEZAR_PLATFORM" "$CEZAR_VERSION" "$CODEX_VERSION"

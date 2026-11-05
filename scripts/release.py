@@ -24,7 +24,7 @@ BRANCH = 'update-state'
 
 def validate_version(version):
     match = VERSION.fullmatch(version)
-    if not match or len(version) > 128:
+    if not match or len(version) > 122:
         raise ValueError(f'Invalid exact Docker-compatible version: {version!r}')
     if match.group(4) and any(p.isdigit() and len(p) > 1 and p[0] == '0' for p in match.group(4).split('.')):
         raise ValueError(f'Invalid prerelease version: {version!r}')
@@ -93,9 +93,9 @@ def eligible(record, now):
 
 def promote(repo, version, digest, channel):
     source = f'{repo}@{digest}'
-    subprocess.run(['docker', 'pull', source], check=True, timeout=600)
-    subprocess.run(['docker', 'tag', source, f'{repo}:{channel}'], check=True, timeout=60)
-    subprocess.run(['docker', 'push', f'{repo}:{channel}'], check=True, timeout=600)
+    # Copy the full index: pull/tag/push would keep only this runner's platform.
+    subprocess.run(['regctl', 'image', 'copy', source, f'{repo}:{channel}'],
+                   check=True, timeout=600)
 
 
 def run_release(store, state, version, channels, force=False, now=None):

@@ -1,15 +1,17 @@
 FROM node:24-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5
 
+ARG TARGETARCH
 ARG CEZAR_VERSION=0.18.0
 LABEL org.opencontainers.image.title="Cezar" \
       org.opencontainers.image.source="https://github.com/h3x89/cezar-docker" \
+      org.opencontainers.image.description="Cezar for Linux AMD64 (x86_64) and ARM64 (aarch64); install Codex separately." \
       org.opencontainers.image.version="${CEZAR_VERSION}"
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates git openssh-client bash curl python3 ripgrep \
     && install -d -m 0755 /etc/apt/keyrings \
     && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o /etc/apt/keyrings/github-cli.gpg \
-    && echo 'deb [arch=amd64 signed-by=/etc/apt/keyrings/github-cli.gpg] https://cli.github.com/packages stable main' > /etc/apt/sources.list.d/github-cli.list \
+    && echo "deb [arch=${TARGETARCH} signed-by=/etc/apt/keyrings/github-cli.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list \
     && apt-get update && apt-get install -y --no-install-recommends gh \
     && rm -rf /var/lib/apt/lists/* \
     && usermod --login cezar --home /home/cezar node \

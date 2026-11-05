@@ -19,7 +19,7 @@ concurrency:
 jobs:
   image:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 60
     env:
       CEZAR_VERSION: ${{ inputs.cezar_version || '0.18.0' }}
       CODEX_VERSION: ${{ inputs.codex_version || '0.166.0' }}
@@ -31,5 +31,8 @@ jobs:
           persist-credentials: false
       - run: python3 -m unittest discover -s tests -v
       - uses: docker/setup-compose-action@54042514f505b273907334ae2b9cdbb9a0213c1a # v2
-      - name: Build and test AMD64 (no publication)
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
+        with:
+          platforms: arm64
+      - name: Build and test AMD64 and ARM64 (no publication)
         run: bash scripts/build-publish.sh
