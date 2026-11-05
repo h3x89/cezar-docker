@@ -1,0 +1,41 @@
+name: cezar
+services:
+  cezar:
+    image: ${CEZAR_IMAGE:-cezar:local}
+    build:
+      context: .
+      args:
+        CEZAR_VERSION: ${CEZAR_VERSION:-0.18.0}
+    platform: linux/amd64
+    init: true
+    user: "1000:1000"
+    restart: unless-stopped
+    stop_grace_period: 60s
+    environment:
+      HOME: /home/cezar
+      CEZ_HOME: /home/cezar/.cezar
+      CODEX_HOME: /home/cezar/.codex
+      CEZ_DRY_RUN: ${CEZ_DRY_RUN:-0}
+    ports:
+      - "${CEZAR_BIND_ADDRESS:-127.0.0.1}:${CEZAR_PORT:-4321}:4321"
+    volumes:
+      - home:/home/cezar
+      - project:/workspace/project
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 4g
+    cpus: 2
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:4321/api/v1/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 45s
+      retries: 6
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+volumes:
+  home: {}
+  project: {}

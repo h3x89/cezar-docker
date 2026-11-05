@@ -1,0 +1,36 @@
+name: Build and test image
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      cezar_version:
+        description: Exact Cezar npm version
+        required: true
+        default: 0.18.0
+      codex_version:
+        description: Exact stable Codex version to test separately
+        required: true
+        default: 0.166.0
+permissions:
+  contents: read
+concurrency:
+  group: image-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CEZAR_VERSION: ${{ inputs.cezar_version || '0.18.0' }}
+      CODEX_VERSION: ${{ inputs.codex_version || '0.166.0' }}
+      CEZAR_IMAGE: cezar:smoke
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 -m unittest discover -s tests -v
+      - uses: docker/setup-compose-action@54042514f505b273907334ae2b9cdbb9a0213c1a # v2
+      - name: Build AMD64 (no publication)
+        run: docker build --platform linux/amd64 --build-arg "CEZAR_VERSION=$CEZAR_VERSION" -t "$CEZAR_IMAGE" .
+      - name: Test cockpit, independent Codex and replacement persistence
+        run: bash scripts/smoke.sh

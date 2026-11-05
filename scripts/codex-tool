@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+die() { printf 'codex-tool: %s\n' "$*" >&2; exit 1; }
+usage() { printf 'Usage: codex-tool install VERSION | update VERSION | check\n' >&2; exit 2; }
+[[ $# -ge 1 ]] || usage
+operation=$1
+case "$operation" in
+  install|update)
+    [[ $# -eq 2 ]] || usage
+    version=$2
+    [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die 'Use an explicit stable version, for example 0.166.0 (not latest).'
+    ;;
+  check) [[ $# -eq 1 ]] || usage ;;
+  *) usage ;;
+esac
+
+[[ "${HOME:-}" == /* && "$HOME" != / ]] || die 'HOME must be an absolute user home directory.'
+[[ "$(id -u)" != 0 ]] || die 'Run as the container user (1000), without sudo.'
+prefix="$HOME/.local"
+binary="$prefix/bin/codex"
+metadata="$prefix/lib/node_modules/@openai/codex/package.json"
+
+check_install() {
+  [[ -x "$binary" && -f "$metadata" ]] || die 'Codex is missing or incomplete. Run codex-tool install VERSION.'
+  # Both the launcher and its package must live in the persisted prefix.
+  installed_version=$(node -e '
+    const fs = require("node:fs"), path = require("node:path");
+    const [prefix, binary, metadata] = process.argv.slice(1);
+    const root = fs.realpathSync(prefix) + path.sep;
+    if (!root.startsWith(fs.realpathSync(process.env.HOME) + path.sep)) process.exit(1);
+    for (const p of [binary, metadata]) {
+      if (!fs.realpathSync(p).startsWith(root)) process.exit(1);
+    }
+    process.stdout.write(JSON.parse(fs.readFileSync(metadata, "utf8")).version);
+  ' "$prefix" "$binary" "$metadata") || die 'The installed package or launcher is outside the persistent prefix or invalid.'
+  banner=$("$binary" --version) || die 'The installed Codex cannot run on this image.'
+  [[ "$banner" == "codex-cli $installed_version" ]] || die 'Codex executable and package versions do not match.'
+  printf '%s\n' "$banner"
+}
+
+if [[ "$operation" == check ]]; then
+  check_install
+  exit 0
+fi
+
+mkdir -p "$prefix"
+node -e '
+  const fs=require("node:fs"), path=require("node:path");
+  if (!(fs.realpathSync(process.argv[1])+path.sep).startsWith(fs.realpathSync(process.env.HOME)+path.sep)) process.exit(1);
+' "$prefix" || die 'The installation prefix must remain inside the persistent HOME.'
+# npm owns package resolution and its normal failure behavior. No retries,
+# fallback versions, start-time installation, or implicit updates.
+npm install --global --prefix "$prefix" --no-audit --no-fund --no-update-notifier "@openai/codex@$version"
+check_install
+[[ "$installed_version" == "$version" ]] || die 'npm did not install the requested version.'

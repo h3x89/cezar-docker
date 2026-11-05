@@ -1,0 +1,7 @@
+.git
+.github
+worktrees
+tests
+__pycache__
+.env
+*.log
