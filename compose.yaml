@@ -1,7 +1,7 @@
 name: cezar
 services:
   cezar:
-    image: ${CEZAR_IMAGE:-cezar:local}
+    image: ${CEZAR_IMAGE:-ghcr.io/h3x89/cezar-docker:latest}
     build:
       context: .
       args:
