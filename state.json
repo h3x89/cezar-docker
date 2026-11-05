@@ -12,10 +12,8 @@
   "versions": {
     "0.18.0": {
       "attempts": 1,
-      "digest": "sha256:03d9336fc9f35c81db5f4771474c7d7c4fc1ba7f8dbc2723e1b4ad46d44faa6f",
-      "image": "ghcr.io/h3x89/cezar-docker:0.18.0",
-      "last_attempt": 1793901360,
-      "status": "published"
+      "last_attempt": 1793906245,
+      "status": "reserved"
     },
     "0.19.0-nightly.20261105.103": {
       "attempts": 1,
