@@ -1,8 +1,8 @@
 {
   "aliases": {
     "latest": {
-      "digest": "sha256:d8c2e9aca9be0db54803537185a3955afce86a37cb2624cdcd4c34313cd05d61",
-      "version": "0.18.0"
+      "digest": "sha256:76a9ed6b19de3d6e8f1c177cd42a5d5af25607ae8f0aa9620061f2b8b153b67f",
+      "version": "0.19.0"
     },
     "nightly": {
       "digest": "sha256:3a59f0a4efdeef53671a8108e1fd1075f9fa8614d6436ebbf92f966117d1f661",
@@ -19,8 +19,10 @@
     },
     "0.19.0": {
       "attempts": 1,
+      "digest": "sha256:76a9ed6b19de3d6e8f1c177cd42a5d5af25607ae8f0aa9620061f2b8b153b67f",
+      "image": "ghcr.io/h3x89/cezar-docker:0.19.0",
       "last_attempt": 1794185941,
-      "status": "reserved"
+      "status": "published"
     },
     "0.19.0-nightly.20261105.103": {
       "attempts": 1,
