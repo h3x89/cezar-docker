@@ -17,6 +17,11 @@
       "last_attempt": 1793906245,
       "status": "published"
     },
+    "0.19.0": {
+      "attempts": 1,
+      "last_attempt": 1794185941,
+      "status": "reserved"
+    },
     "0.19.0-nightly.20261105.103": {
       "attempts": 1,
       "digest": "sha256:092ed81f3bb70df02dac2fa48cbb77df61368042a6f005615e9d51919a8db025",
