@@ -72,6 +72,11 @@
       "image": "ghcr.io/h3x89/cezar-docker:0.20.0-nightly.20261110.109",
       "last_attempt": 1794333298,
       "status": "published"
+    },
+    "0.20.0-nightly.20261111.110": {
+      "attempts": 1,
+      "last_attempt": 1794410385,
+      "status": "reserved"
     }
   }
 }
