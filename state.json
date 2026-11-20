@@ -5,8 +5,8 @@
       "version": "0.20.0"
     },
     "nightly": {
-      "digest": "sha256:28d43d1559ef1b71c406d74b01cfc66b08ccbe374fb5e95a22a5ee8f05c1aed9",
-      "version": "0.21.0-nightly.20261119.119"
+      "digest": "sha256:415088d0f909ed2f8741a2cc9359c925839d11f32421fe8d90e58706b4bbb1d8",
+      "version": "0.21.0-nightly.20261120.120"
     }
   },
   "versions": {
@@ -152,8 +152,10 @@
     },
     "0.21.0-nightly.20261120.120": {
       "attempts": 1,
+      "digest": "sha256:415088d0f909ed2f8741a2cc9359c925839d11f32421fe8d90e58706b4bbb1d8",
+      "image": "ghcr.io/h3x89/cezar-docker:0.21.0-nightly.20261120.120",
       "last_attempt": 1795179719,
-      "status": "reserved"
+      "status": "published"
     }
   }
 }
