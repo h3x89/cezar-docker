@@ -186,9 +186,9 @@
       "status": "published"
     },
     "0.21.0-nightly.20261124.126": {
-      "attempts": 1,
-      "last_attempt": 1795555158,
-      "status": "failed"
+      "attempts": 2,
+      "last_attempt": 1795563108,
+      "status": "reserved"
     }
   }
 }
