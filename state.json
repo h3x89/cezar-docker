@@ -188,7 +188,7 @@
     "0.21.0-nightly.20261124.126": {
       "attempts": 1,
       "last_attempt": 1795555158,
-      "status": "reserved"
+      "status": "failed"
     }
   }
 }
